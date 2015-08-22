@@ -1,0 +1,13 @@
+[package]
+name = "piccolo"
+version = "0.1.0"
+authors = ["Zachary Tong <zacharyjtong@gmail.com>"]
+
+[dependencies]
+mioco = "*"
+mio = "*"
+clap = "1.2.5"
+toml = "0.1.22"
+rustc-serialize = "0.3"
+env_logger = "*"
+log = "*"
