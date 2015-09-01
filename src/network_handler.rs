@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::str::FromStr;
 use std::io::{Read, Write, Result};
 use mio::tcp::{TcpSocket, TcpStream};
@@ -19,19 +19,28 @@ impl NetworkHandler {
     pub fn start(mioco: &mut MiocoHandle, config: Arc<Config>) -> Result<()> {
 
         let bind_host = &config.discovery.bind_host;
+        let bind_port = config.discovery.bind_port;
         info!("Binding {}", bind_host);
 
         // We'll replace all this with proper error handling in the future
-        let addr: SocketAddr = FromStr::from_str(&*bind_host)
-                                    .unwrap_or_else(|err|panic!("{}: [{}]", err, bind_host));
+
+        let mut addr = build_address(bind_host, bind_port);
         let sock = try!(TcpSocket::v4());
+        loop {
+            match sock.bind(&addr) {
+                Ok(_) => break,
+                Err(_) => {
+                    addr = build_address(bind_host, addr.port() + 1);
+                }
+            }
+        }
         try!(sock.bind(&addr));
         let listener = try!(sock.listen(1024));
 
         info!("Server bound on {:?}", listener.local_addr().unwrap());
 
         // Spin up the discovery connections
-        startDiscovery(mioco, &config);
+        start_discovery(mioco, &config);
 
         // To allow mioco to block coroutines without blocking the thread,
         // we have to wrap all mio constructs first
@@ -48,6 +57,12 @@ impl NetworkHandler {
             });
         }
     }
+}
+
+fn build_address(bind_host: &String, bind_port: u16) -> SocketAddr {
+    let ip = FromStr::from_str(&*bind_host)
+                .unwrap_or_else(|err|panic!("{}: [{}]", err, bind_host));;
+    SocketAddr::V4(SocketAddrV4::new(ip, bind_port))
 }
 
 /// Spins a connection coroutine
@@ -79,12 +94,12 @@ fn connection(mioco: &mut MiocoHandle, conn: TcpStream) -> Result<()> {
     Ok(())
 }
 
-fn startDiscovery(mioco: &mut MiocoHandle, config: &Arc<Config>) {
+fn start_discovery(mioco: &mut MiocoHandle, config: &Arc<Config>) {
     let bind_host = &config.discovery.bind_host;
 
     // Try to connect to external servers, but filter out ourself
     for host in config.discovery.hosts.iter().filter(|&x| x != bind_host) {
-        let addr = FromStr::from_str(&*host).unwrap_or_else(|err|panic!("{}: [{}]", err, host));
+        let addr: SocketAddr = FromStr::from_str(&*host).unwrap_or_else(|err|panic!("{}: [{}]", err, host));
 
         mioco.spawn(move |mioco| {
             discovery(mioco, addr)

@@ -58,7 +58,7 @@ impl Config {
         let config = Value::Table(toml.unwrap());
         match toml::decode(config) {
             Some(t) => t,
-            None => panic!("Error while deserializing config")
+            None => panic!("Error while deserializing config: [{}]")
         }
     }
 }
@@ -70,15 +70,19 @@ pub struct DiscoveryConfig  {
     /// The other nodes in the cluster
     pub hosts: Vec<String>,
 
-    /// Our local address:port to bind to
-    pub bind_host: String
+    /// Our local address to bind to
+    pub bind_host: String,
+
+    /// The port we should listen on
+    pub bind_port: u16
 }
 
 impl DiscoveryConfig {
     pub fn new() -> DiscoveryConfig {
         DiscoveryConfig {
             hosts: vec![],
-            bind_host: "127.0.0.1:19919".to_string()
+            bind_host: "127.0.0.1".to_string(),
+            bind_port: 19919
         }
     }
 }
