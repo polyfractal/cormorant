@@ -58,7 +58,7 @@ impl Config {
         let config = Value::Table(toml.unwrap());
         match toml::decode(config) {
             Some(t) => t,
-            None => panic!("Error while deserializing config: [{}]")
+            None => panic!("Error while deserializing config")
         }
     }
 }
