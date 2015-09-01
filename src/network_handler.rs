@@ -18,16 +18,20 @@ impl NetworkHandler {
     /// it will dispatch the connection to a new coroutine
     pub fn start(mioco: &mut MiocoHandle, config: Arc<Config>) -> Result<()> {
 
-        let host = format!("{}:{}", config.discovery.bind_host, config.discovery.bind_port);
-        info!("Binding {}", host);
+        let bind_host = &config.discovery.bind_host;
+        info!("Binding {}", bind_host);
 
         // We'll replace all this with proper error handling in the future
-        let addr: SocketAddr = FromStr::from_str(&*host).unwrap_or_else(|err|panic!("{}: [{}]", err, host));
+        let addr: SocketAddr = FromStr::from_str(&*bind_host)
+                                    .unwrap_or_else(|err|panic!("{}: [{}]", err, bind_host));
         let sock = try!(TcpSocket::v4());
         try!(sock.bind(&addr));
         let listener = try!(sock.listen(1024));
 
         info!("Server bound on {:?}", listener.local_addr().unwrap());
+
+        // Spin up the discovery connections
+        startDiscovery(mioco, &config);
 
         // To allow mioco to block coroutines without blocking the thread,
         // we have to wrap all mio constructs first
@@ -73,4 +77,31 @@ fn connection(mioco: &mut MiocoHandle, conn: TcpStream) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn startDiscovery(mioco: &mut MiocoHandle, config: &Arc<Config>) {
+    let bind_host = &config.discovery.bind_host;
+
+    // Try to connect to external servers, but filter out ourself
+    for host in config.discovery.hosts.iter().filter(|&x| x != bind_host) {
+        let addr = FromStr::from_str(&*host).unwrap_or_else(|err|panic!("{}: [{}]", err, host));
+
+        mioco.spawn(move |mioco| {
+            discovery(mioco, addr)
+        });
+    }
+
+}
+
+fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr) -> Result<()> {
+    // Never gonna give you up...
+    loop {
+        if let Ok(socket) = TcpSocket::v4() {
+            if let Ok(conn) = socket.connect(&addr) {
+                debug!("Connected to external node");
+            }
+        }
+        mioco.sleep(500);
+    }
+
 }
