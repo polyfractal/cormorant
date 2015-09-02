@@ -11,7 +11,7 @@ extern crate env_logger;
 
 mod config;
 mod network_handler;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use clap::{Arg, App};
 use config::Config;
 use network_handler::NetworkHandler;
@@ -45,7 +45,7 @@ fn main() {
 
     // We place the deserialized Config into an Arc, so that we can share it between
     // multiple threads in the future.  It will be immutable and not a problem to share
-    let config = Arc::new(Config::parse(path));
+    let config = Arc::new(RwLock::new(Config::parse(path)));
 
     for i in 0..threads {
         // Placeholder for threaded worker coroutines
