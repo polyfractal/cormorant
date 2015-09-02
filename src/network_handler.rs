@@ -148,35 +148,31 @@ fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr) -> Result<()> {
         // Mio returns a stream and a completion flag.  If `complete` is
         // true, the socket connected immediately and we can start writing.
         // It usually returns false
-        let (stream, complete) = socket.connect(&addr).unwrap();
+        let (stream, mut complete) = socket.connect(&addr).unwrap();
         let stream = mioco.wrap(stream);
 
-        // If the socket didn't connect immediately, block this coroutine
-        // until we get a Writeable event (we've only initiated one pending IO, so
-        // safe to use select_write() instead of select_write_from() )
+        // If the socket didn't connect immediately, connect_wait() will
+        // block this coroutine and return a Result to signal if the connection
+        // completed
         if !complete {
-            let event = mioco.select_write();
-            debug!("{:?}", event);
-        }
-
-        // We will use the mailboxes to notify our discovery thread if
-        // the remote peer fails at some point in the future, so we can
-        // can try to reconnect
-        let (mail_send, mail_recv) = mioco::mailbox::<bool>();
-
-        // If the socket connected successfully, or there are no errors...
-        let success = complete | {
-            match stream.with_raw(|s| s.take_socket_error()) {
+            mioco.select_write();
+            complete = match stream.with_raw(|s| s.take_socket_error()) {
                 Ok(_) => true,
                 Err(e) => {
                     debug!("err: {:?}", e);
                     false
                 }
             }
-        };
+        }
 
         // ... spawn a thread to handle talking to the remote node
-        if success {
+        if complete {
+
+            // We will use the mailboxes to notify our discovery thread if
+            // the remote peer fails at some point in the future, so we can
+            // can try to reconnect
+            let (mail_send, mail_recv) = mioco::mailbox::<bool>();
+
             mioco.spawn(move |mioco| {
                 remote_node_handler(mioco, stream, mail_send)
             });
