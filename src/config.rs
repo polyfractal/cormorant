@@ -81,7 +81,7 @@ impl DiscoveryConfig {
     pub fn new() -> DiscoveryConfig {
         DiscoveryConfig {
             hosts: vec![],
-            bind_host: "127.0.0.1".to_string(),
+            bind_host: "127.0.0.1".to_owned(),
             bind_port: 19919
         }
     }
