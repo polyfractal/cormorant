@@ -1,14 +1,16 @@
-## Piccolo
+## Cormorant
 
-Piccolo is a toy distributed key:value datastore written in Rust.  It is not
+Cormorant is a toy distributed key:value datastore written in Rust.  It is not
 intended for any practical use -- it is just a learning project and teaching
 tool.
 
-Piccolo is also a small flute. :)
+
+Cormorant are coastal seabirds that are excellent swimmers, but rather poor
+at flying.  They nest in giant colonies and look rather prehistoric.
 
 ### Building
 
-To test Piccolo out, execute this command in two terminals (the nodes will
+To test Cormorant out, execute this command in two terminals (the nodes will
 find and cluster with each other):  
 
 ```

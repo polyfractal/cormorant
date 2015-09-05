@@ -21,8 +21,8 @@ fn main() {
     env_logger::init().unwrap();
 
     // Pull some optional arguments off the commandline
-    let matches = App::new("piccolo")
-                          .version("0.01")
+    let matches = App::new("cormorant")
+                          .version("0.1")
                           .author("Zachary Tong <zacharyjtong@gmail.com>")
                           .about("Toy Distributed Key:Value Store")
                           .arg(Arg::with_name("CONFIG")
