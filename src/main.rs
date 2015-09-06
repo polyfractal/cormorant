@@ -14,7 +14,7 @@ extern crate env_logger;
 mod config;
 mod network_handler;
 mod state;
-
+mod util;
 
 pub mod protocol {
     include!(concat!(env!("OUT_DIR"), "/ping_capnp.rs"));
@@ -60,11 +60,11 @@ fn main() {
 
     let state = Arc::new(RwLock::new(State::new()));
 
-    let (name, id) = {
-        (&config.read().unwrap().node.name, &state.read().unwrap().node_id.to_hyphenated_string())
-    };
+    {
+        info!("Starting server \"{}\" [{}]",
+            &config.read().unwrap().node.name, state.read().unwrap().node_id.to_hyphenated_string());
+    }
 
-    info!("Starting server \"{}\" [{}]", name, id);
 
     for i in 0..threads {
         // Placeholder for threaded worker coroutines
