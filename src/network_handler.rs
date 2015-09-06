@@ -1,12 +1,19 @@
 use std::net::{SocketAddr, SocketAddrV4};
 use std::str::FromStr;
-use std::io::{Read, Write, Result};
+use std::io::{Read, Write, Result, Error, ErrorKind};
 use mio::tcp::{TcpSocket, TcpStream};
 use mioco::{MiocoHandle, MailboxOuterEnd, EventSource};
 use mioco;
 use std::sync::{Arc, RwLock};
 use config::Config;
 use state::State;
+use uuid::Uuid;
+use capnp::{message, serialize_packed};
+use capnp;
+use ::protocol::ping;
+use ::util;
+use std::io::BufReader;
+
 
 /// The NetworkHandler manages all the networking, connections, requests, etc
 /// There technically isn't a need for a struct -- we could have used a function --
@@ -38,26 +45,33 @@ impl NetworkHandler {
         // keep incrementing until we find one
         loop {
             match sock.bind(&addr) {
-                Ok(_) => break,
+                Ok(_) => {
+                    debug!("bound! on [{}]", addr);
+                    break;
+                },
                 Err(_) => {
                     error!("Port [{}] taken, trying higher", addr.port());
                     addr = build_address(bind_host, addr.port() + 1);
+                    debug!("{:?}", addr);
                 }
             }
         }
+
+        debug!("Listening...");
         let listener = try!(sock.listen(1024));
 
         // If we had to choose a new port, obtain a write-lock and update the config
         if addr.port() != bind_port {
+            debug!("Updating config to port: {}", addr.port());
             let mut c = config.write().unwrap();
             c.discovery.bind_port = addr.port();
-            debug!("Updating config to port: {}", addr.port());
+            debug!("Config updated");
         }
 
         info!("Server bound on {:?}", listener.local_addr().unwrap());
 
         // Spin up the discovery connections
-        start_discovery(mioco, &config);
+        start_discovery(mioco, &config, &state);
 
         // To allow mioco to block coroutines without blocking the thread,
         // we have to wrap all mio constructs first
@@ -86,26 +100,39 @@ fn build_address(bind_host: &String, bind_port: u16) -> SocketAddr {
 /// Currently it just acts as an echo server, but in the near future
 /// this will be responsible for pulling Cap'n'proto commands off the
 /// line and dispatching to worker threads
-fn connection(mioco: &mut MiocoHandle, conn: TcpStream) -> Result<()> {
-    let peer_addr = conn.peer_addr().unwrap();
+fn connection(mioco: &mut MiocoHandle, stream: TcpStream) -> Result<()> {
+    let peer_addr = stream.peer_addr().unwrap();
 
     debug!("Accepting connection from [{}]", peer_addr);
 
-    let mut conn = mioco.wrap(conn);
-    let mut buf = [0u8; 1024 * 16];
+    let mut stream = mioco.wrap(stream);
+    let mut buf_reader = BufReader::new(stream);
 
-    // Simple echo server loop.  Read down all the data and
-    // write it back
     loop {
-        let size = try!(conn.read(&mut buf));
-        debug!("Read [{}] bytes from [{}]", size, peer_addr);
-        if size == 0 {
-            /* eof */
-            debug!("HUP from [{}]", peer_addr);
-            break;
-        }
-        debug!("Writing [{}] bytes to [{}]", size, peer_addr);
-        try!(conn.write_all(&mut buf[0..size]))
+        let message = match serialize_packed::read_message(&mut buf_reader, ::capnp::message::ReaderOptions::new()) {
+            Ok(m) => m,
+            Err(e) => {
+                error!("Error deserializing message: {}", e);
+                break;
+            }
+        };
+
+        let ping = match message.get_root::<ping::Reader>() {
+            Ok(p) => p,
+            Err(e) => return Err(Error::new(ErrorKind::Other, format!("Error reading message: {}", e)))
+        };
+
+        debug!("Read ping from [{}]", peer_addr);
+        let id = {
+            let mut id = [0u8; 16];
+            let bytes = ping.get_id().unwrap();
+            for i in 0..16 {
+                id[i] = bytes.get(i as u32);
+            }
+
+            Uuid::from_bytes(&id).unwrap()
+        };
+        debug!("Remote server's ID: {}", id.to_hyphenated_string());
     }
 
     Ok(())
@@ -113,7 +140,7 @@ fn connection(mioco: &mut MiocoHandle, conn: TcpStream) -> Result<()> {
 
 /// Begin the discovery process.  Essentially it iterates over the list of
 /// discovery nodes and spawns a coroutine to talk to each one
-fn start_discovery(mioco: &mut MiocoHandle, config: &Arc<RwLock<Config>>) {
+fn start_discovery(mioco: &mut MiocoHandle, config: &Arc<RwLock<Config>>, state: &Arc<RwLock<State>>) {
 
     // We need to avoid connecting to ourself, so read-lock the config
     // and format bind_host appropriately.  We could do this below, but by
@@ -129,9 +156,10 @@ fn start_discovery(mioco: &mut MiocoHandle, config: &Arc<RwLock<Config>>) {
         let reader = config.read().unwrap();
         for host in reader.discovery.hosts.iter().filter(|&x| x != &*bind_host) {
             let addr: SocketAddr = FromStr::from_str(&*host).unwrap_or_else(|err|panic!("{}: [{}]", err, host));
+            let state_clone = state.clone();
             debug!("Connecting to external node [{}]...", addr);
             mioco.spawn(move |mioco| {
-                discovery(mioco, addr)
+                discovery(mioco, addr, state_clone)
             });
         }
     }
@@ -139,7 +167,7 @@ fn start_discovery(mioco: &mut MiocoHandle, config: &Arc<RwLock<Config>>) {
 
 /// This function is in charge of talking to a single external node, attempting to
 /// establish a connection, etc
-fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr) -> Result<()> {
+fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr, state: Arc<RwLock<State>>) -> Result<()> {
     // Never gonna give you up...
     loop {
 
@@ -173,9 +201,9 @@ fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr) -> Result<()> {
             // the remote peer fails at some point in the future, so we can
             // can try to reconnect
             let (mail_send, mail_recv) = mioco::mailbox::<bool>();
-
+            let state_clone = state.clone();
             mioco.spawn(move |mioco| {
-                remote_node_handler(mioco, stream, mail_send)
+                remote_node_handler(mioco, state_clone, stream, mail_send)
             });
 
             // And then block this coroutine waiting for a failure notification
@@ -191,16 +219,34 @@ fn discovery(mioco: &mut MiocoHandle, addr: SocketAddr) -> Result<()> {
 
 /// This function handles the communication with a healthy, connected node.
 /// If the node fails, this function will signal via a mailbox and then exit
-fn remote_node_handler(mioco: &mut MiocoHandle, mut stream: EventSource<TcpStream>,
-                    mail_send: MailboxOuterEnd<bool>) -> Result<()> {
+fn remote_node_handler(mioco: &mut MiocoHandle, state: Arc<RwLock<State>>,
+                    mut stream: EventSource<TcpStream>, failure: MailboxOuterEnd<bool>) -> Result<()> {
     loop {
-        try!(stream.write("test".as_bytes()));
-        debug!("Wrote [{}] bytes to remote connection", 4);
-        mioco.sleep(5000);
-        break;
+
+        let mut message = message::Builder::new_default();
+        {
+            let mut ping = message.init_root::<ping::Builder>();
+            {
+                // We have to move the bytes into the message, so make a copy of the id
+                let id = {
+                    let mut dest = [0u8; 16];
+                    util::slice_copy(state.read().unwrap().node_id.as_bytes(), &mut dest);
+                    dest
+                };
+
+                let mut uint8_list = ping.borrow().init_id(16);
+                for i in 0..id.len() {
+                    uint8_list.set(i as u32, id[i]);
+                }
+            }
+        }
+
+        try!(serialize_packed::write_message(&mut stream, &message));
+        debug!("Wrote ping to remote connection");
+        mioco.sleep(10000);
     }
 
     debug!("Shutting down remote connection...");
-    mail_send.send(true);
+    failure.send(true);
     Ok(())
 }
