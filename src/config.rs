@@ -12,7 +12,9 @@ pub struct Config  {
 
     /// The configurations related to networking and finding
     /// other nodes
-    pub discovery: DiscoveryConfig
+    pub discovery: DiscoveryConfig,
+
+    pub node: NodeConfig
 }
 
 impl Config {
@@ -21,7 +23,8 @@ impl Config {
     /// config file
     pub fn new() -> Config {
         Config {
-            discovery: DiscoveryConfig::new()
+            discovery: DiscoveryConfig::new(),
+            node: NodeConfig::new()
         }
     }
 
@@ -83,6 +86,21 @@ impl DiscoveryConfig {
             hosts: vec![],
             bind_host: "127.0.0.1".to_owned(),
             bind_port: 19919
+        }
+    }
+}
+
+/// The configurations related to this node
+#[derive(RustcDecodable, Debug)]
+pub struct NodeConfig  {
+    /// A user-defined name for the server
+    pub name: String
+}
+
+impl NodeConfig {
+    pub fn new() -> NodeConfig {
+        NodeConfig {
+            name: "Cormorant".to_owned()
         }
     }
 }

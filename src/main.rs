@@ -5,17 +5,28 @@ extern crate toml;
 extern crate rustc_serialize;
 extern crate mio;
 extern crate mioco;
+extern crate capnp;
+extern crate uuid;
 
 #[macro_use] extern crate log;
 extern crate env_logger;
 
 mod config;
 mod network_handler;
+mod state;
+
+
+pub mod protocol {
+    include!(concat!(env!("OUT_DIR"), "/ping_capnp.rs"));
+}
+
+use protocol::ping;
+
 use std::sync::{Arc, RwLock};
 use clap::{Arg, App};
 use config::Config;
 use network_handler::NetworkHandler;
-
+use state::State;
 
 fn main() {
     env_logger::init().unwrap();
@@ -47,6 +58,14 @@ fn main() {
     // multiple threads in the future.  It will be immutable and not a problem to share
     let config = Arc::new(RwLock::new(Config::parse(path)));
 
+    let state = Arc::new(RwLock::new(State::new()));
+
+    let (name, id) = {
+        (&config.read().unwrap().node.name, &state.read().unwrap().node_id.to_hyphenated_string())
+    };
+
+    info!("Starting server \"{}\" [{}]", name, id);
+
     for i in 0..threads {
         // Placeholder for threaded worker coroutines
     }
@@ -54,8 +73,8 @@ fn main() {
     // The networking will be handled by the "main" thread.
     // It will be responsible for accepting connections, finding and connecting to
     // other nodes, answering requests, etc
-    let config_clone = config.clone();
+    let (config_clone, state_clone) = (config.clone(), state.clone());
     mioco::start(move |mioco| {
-        NetworkHandler::start(mioco, config_clone)
+        NetworkHandler::start(mioco, config_clone, state_clone)
     });
 }

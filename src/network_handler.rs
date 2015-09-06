@@ -6,6 +6,7 @@ use mioco::{MiocoHandle, MailboxOuterEnd, EventSource};
 use mioco;
 use std::sync::{Arc, RwLock};
 use config::Config;
+use state::State;
 
 /// The NetworkHandler manages all the networking, connections, requests, etc
 /// There technically isn't a need for a struct -- we could have used a function --
@@ -17,7 +18,7 @@ impl NetworkHandler {
     /// Start spinning the networking coroutine.  This attempts to bind itself
     /// to the configured host:port, then start listening.  When connections are accepted,
     /// it will dispatch the connection to a new coroutine
-    pub fn start(mioco: &mut MiocoHandle, config: Arc<RwLock<Config>>) -> Result<()> {
+    pub fn start(mioco: &mut MiocoHandle, config: Arc<RwLock<Config>>, state: Arc<RwLock<State>>) -> Result<()> {
 
         // Obtain a read-lock, make a copy of host/port so we can release the lock
         // This is the only thread that requires that data, so it is safe to cache
