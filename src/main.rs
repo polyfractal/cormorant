@@ -13,6 +13,7 @@ extern crate env_logger;
 
 mod config;
 mod network_handler;
+
 mod state;
 mod util;
 
@@ -20,12 +21,9 @@ pub mod protocol {
     include!(concat!(env!("OUT_DIR"), "/ping_capnp.rs"));
 }
 
-use protocol::ping;
-
 use std::sync::{Arc, RwLock};
 use clap::{Arg, App};
 use config::Config;
-use network_handler::NetworkHandler;
 use state::State;
 
 fn main() {
@@ -57,7 +55,6 @@ fn main() {
     // We place the deserialized Config into an Arc, so that we can share it between
     // multiple threads in the future.  It will be immutable and not a problem to share
     let config = Arc::new(RwLock::new(Config::parse(path)));
-
     let state = Arc::new(RwLock::new(State::new()));
 
     {
@@ -75,6 +72,6 @@ fn main() {
     // other nodes, answering requests, etc
     let (config_clone, state_clone) = (config.clone(), state.clone());
     mioco::start(move |mioco| {
-        NetworkHandler::start(mioco, config_clone, state_clone)
+        network_handler::start(mioco, config_clone, state_clone)
     });
 }
