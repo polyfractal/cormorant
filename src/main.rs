@@ -18,7 +18,7 @@ mod state;
 mod util;
 
 pub mod protocol {
-    include!(concat!(env!("OUT_DIR"), "/ping_capnp.rs"));
+    include!(concat!(env!("OUT_DIR"), "/command_capnp.rs"));
 }
 
 use std::sync::{Arc, RwLock};

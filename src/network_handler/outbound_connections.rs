@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 use config::Config;
 use state::State;
 use capnp::{message, serialize_packed};
-use ::protocol::ping;
+use ::protocol::{command, ping, pong};
 use ::util;
 
 /// Begin the discovery process.  Essentially it iterates over the list of
@@ -99,21 +99,19 @@ fn remote_node_handler(mioco: &mut MiocoHandle, state: Arc<RwLock<State>>,
 
         // Start building a Cap'n'proto ping message.  This code is
         // nested in several scopes to maintain borrowing lifetimes
+
+        // message: capnp::message::Builder<_>
         let mut message = message::Builder::new_default();
         {
-            let mut ping = message.init_root::<ping::Builder>();
+            // command: protocol::command::Builder<'_>
+            let mut command = message.init_root::<command::Builder>();
             {
-                // We have to move the bytes into the message, so make a copy of the id
-                let id = {
-                    let mut dest = [0u8; 16];
-                    util::slice_copy(state.read().unwrap().node_id.as_bytes(), &mut dest);
-                    dest
-                };
-
-                let mut uint8_list = ping.borrow().init_id(16);
-                for (i, byte) in id.iter().enumerate() {
-                    uint8_list.set(i as u32, *byte);
+                // ping: protocol::ping::Builder<'_>
+                let mut ping = command.init_ping();
+                {
+                    ping.set_time(0);
                 }
+
             }
         }
 

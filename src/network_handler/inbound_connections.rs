@@ -5,7 +5,7 @@ use mio::tcp::{TcpStream};
 use mioco::{MiocoHandle};
 use uuid::Uuid;
 use capnp::{serialize_packed};
-use ::protocol::ping;
+use ::protocol::{command, ping};
 use std::io::BufReader;
 
 /// Spins a connection coroutine
@@ -32,26 +32,18 @@ pub fn accept(mioco: &mut MiocoHandle, stream: TcpStream) -> Result<()> {
         };
 
         // Since we only have one command right now, we can assume this is a Ping
-        let ping = match message.get_root::<ping::Reader>() {
+        let command = match message.get_root::<command::Reader>() {
             Ok(p) => p,
             Err(e) => return Err(Error::new(ErrorKind::Other, format!("Error reading message: {}", e)))
         };
 
-        debug!("Read ping from [{}]", peer_addr);
+        debug!("Read command from [{}]", peer_addr);
 
-        // The data arrives as an array of bytes, we need to copy
-        // those out and create a UUID.
-        // TODO: is there a ay to ask capnp for a slice of bytes?
-        let id = {
-            let mut id = [0u8; 16];
-            let bytes = ping.get_id().unwrap();
-            for (i, byte) in id.iter_mut().enumerate() {
-                *byte = bytes.get(i as u32);
-            }
-
-            Uuid::from_bytes(&id).unwrap()
-        };
-        debug!("Remote server's ID: {}", id.to_hyphenated_string());
+        match command.which() {
+            Ok(command::Ping(p)) => debug!("Got ping"),
+            Ok(command::Pong(p)) => debug!("Got pong"),
+            Err(e) => debug!("Got other")
+        }
     }
 
     Ok(())
