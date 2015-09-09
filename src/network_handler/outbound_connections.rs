@@ -8,8 +8,6 @@ use mioco;
 use std::sync::{Arc, RwLock};
 use config::Config;
 use state::State;
-use capnp::{message, serialize_packed};
-use ::protocol::{command};
 use chrono::UTC;
 
 /// Begin the discovery process.  Essentially it iterates over the list of
@@ -97,31 +95,7 @@ fn remote_node_handler(mioco: &mut MiocoHandle, state: Arc<RwLock<State>>,
                     mut stream: EventSource<TcpStream>, failure: MailboxOuterEnd<bool>) -> Result<()> {
     loop {
 
-        // Start building a Cap'n'proto ping message.  This code is
-        // nested in several scopes to maintain borrowing lifetimes
-
-        // message: capnp::message::Builder<_>
-        let mut message = message::Builder::new_default();
-        {
-            // command: protocol::command::Builder<'_>
-            let command = message.init_root::<command::Builder>();
-            {
-                // ping: protocol::ping::Builder<'_>
-                let mut ping = command.init_ping();
-                {
-                    ping.set_time(UTC::now().timestamp());
-                }
-
-            }
-        }
-
-        match serialize_packed::write_message(&mut stream, &message) {
-            Ok(_) => {},
-            Err(e) => {
-                debug!("Error while writing message: {:?}", e);
-                break;
-            }
-        }
+        
         debug!("Wrote ping to remote connection");
         mioco.sleep(10000);
     }

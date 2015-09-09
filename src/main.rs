@@ -1,11 +1,11 @@
-#![feature(custom_derive)]
+#![feature(custom_derive, plugin)]
+#![plugin(serde_macros)]
 
 extern crate clap;
 extern crate toml;
-extern crate rustc_serialize;
+extern crate serde;
 extern crate mio;
 extern crate mioco;
-extern crate capnp;
 extern crate uuid;
 extern crate chrono;
 
@@ -17,10 +17,6 @@ mod network_handler;
 
 mod state;
 mod util;
-
-pub mod protocol {
-    include!(concat!(env!("OUT_DIR"), "/command_capnp.rs"));
-}
 
 use std::sync::{Arc, RwLock};
 use clap::{Arg, App};

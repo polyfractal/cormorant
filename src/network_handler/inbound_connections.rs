@@ -3,8 +3,6 @@
 use std::io::{Result, Error, ErrorKind};
 use mio::tcp::{TcpStream};
 use mioco::{MiocoHandle};
-use capnp::{serialize_packed};
-use ::protocol::{command};
 use std::io::BufReader;
 
 
@@ -23,31 +21,7 @@ pub fn accept(mioco: &mut MiocoHandle, stream: TcpStream) -> Result<()> {
     loop {
         // Try to deserialize the command.  If there is a failure,
         // we assume it is a HUP for now
-        let message = match serialize_packed::read_message(&mut buf_reader, ::capnp::message::ReaderOptions::new()) {
-            Ok(m) => m,
-            Err(e) => {
-                error!("Error deserializing message: {}", e);
-                break;
-            }
-        };
-
-        let command = match message.get_root::<command::Reader>() {
-            Ok(p) => p,
-            Err(e) => return Err(Error::new(ErrorKind::Other, format!("Error reading message: {}", e)))
-        };
-
-
-        debug!("Read command from [{}]", peer_addr);
-
-        match command.which() {
-            Ok(command::Ping(p)) => {
-                let time = p.unwrap().get_time();
-                debug!("Ping sent at: {}", time);
-            },
-            Ok(command::Pong(p)) => debug!("Got pong"),
-            Err(e) => debug!("Got other")
-
-        };
+        
     }
 
     Ok(())
