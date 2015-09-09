@@ -8,9 +8,9 @@ struct Command {
 }
 
 struct Ping {
-  time @0 :UInt32;
+  time @0 :Int64;
 }
 
 struct Pong {
-  time @0 :UInt32;
+  time @0 :Int64;
 }

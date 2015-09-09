@@ -3,10 +3,10 @@
 use std::io::{Result, Error, ErrorKind};
 use mio::tcp::{TcpStream};
 use mioco::{MiocoHandle};
-use uuid::Uuid;
 use capnp::{serialize_packed};
-use ::protocol::{command, ping};
+use ::protocol::{command};
 use std::io::BufReader;
+
 
 /// Spins a connection coroutine
 /// Currently it just acts as an echo server, but in the near future
@@ -31,19 +31,23 @@ pub fn accept(mioco: &mut MiocoHandle, stream: TcpStream) -> Result<()> {
             }
         };
 
-        // Since we only have one command right now, we can assume this is a Ping
         let command = match message.get_root::<command::Reader>() {
             Ok(p) => p,
             Err(e) => return Err(Error::new(ErrorKind::Other, format!("Error reading message: {}", e)))
         };
 
+
         debug!("Read command from [{}]", peer_addr);
 
         match command.which() {
-            Ok(command::Ping(p)) => debug!("Got ping"),
+            Ok(command::Ping(p)) => {
+                let time = p.unwrap().get_time();
+                debug!("Ping sent at: {}", time);
+            },
             Ok(command::Pong(p)) => debug!("Got pong"),
             Err(e) => debug!("Got other")
-        }
+
+        };
     }
 
     Ok(())

@@ -9,8 +9,8 @@ use std::sync::{Arc, RwLock};
 use config::Config;
 use state::State;
 use capnp::{message, serialize_packed};
-use ::protocol::{command, ping, pong};
-use ::util;
+use ::protocol::{command};
+use chrono::UTC;
 
 /// Begin the discovery process.  Essentially it iterates over the list of
 /// discovery nodes and spawns a coroutine to talk to each one
@@ -104,12 +104,12 @@ fn remote_node_handler(mioco: &mut MiocoHandle, state: Arc<RwLock<State>>,
         let mut message = message::Builder::new_default();
         {
             // command: protocol::command::Builder<'_>
-            let mut command = message.init_root::<command::Builder>();
+            let command = message.init_root::<command::Builder>();
             {
                 // ping: protocol::ping::Builder<'_>
                 let mut ping = command.init_ping();
                 {
-                    ping.set_time(0);
+                    ping.set_time(UTC::now().timestamp());
                 }
 
             }

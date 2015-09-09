@@ -7,6 +7,7 @@ extern crate mio;
 extern crate mioco;
 extern crate capnp;
 extern crate uuid;
+extern crate chrono;
 
 #[macro_use] extern crate log;
 extern crate env_logger;
