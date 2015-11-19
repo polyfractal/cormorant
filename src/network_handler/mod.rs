@@ -1,6 +1,7 @@
 
 mod outbound_connections;
 mod inbound_connections;
+mod protocol;
 
 use std::net::{SocketAddr, SocketAddrV4};
 use std::str::FromStr;
@@ -69,11 +70,12 @@ pub fn start(mioco: &mut MiocoHandle, config: Arc<RwLock<Config>>, state: Arc<Rw
     // Accept connections forever
     loop {
         let conn = try!(listener.accept());
+        let state_clone = state.clone();
 
         // If we get one, spawn a new coroutine and go back to
         // listening for more connections
         mioco.spawn(move |mioco| {
-            inbound_connections::accept(mioco, conn)
+            inbound_connections::accept(mioco, conn, state_clone)
         });
     }
 }

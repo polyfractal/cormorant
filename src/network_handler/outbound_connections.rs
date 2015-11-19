@@ -1,14 +1,18 @@
 
 use std::net::{SocketAddr};
 use std::str::FromStr;
-use std::io::{Read, Result};
+use std::io::{Write, Read, Result};
 use mio::tcp::{TcpSocket, TcpStream};
 use mioco::{MiocoHandle, MailboxOuterEnd, EventSource};
 use mioco;
 use std::sync::{Arc, RwLock};
 use config::Config;
 use state::State;
-use chrono::UTC;
+use chrono::{UTC, NaiveDateTime};
+use bincode::rustc_serialize::{encode, decode};
+use bincode::SizeLimit::{Bounded};
+use super::protocol::{PingCommand, Protocol};
+
 
 /// Begin the discovery process.  Essentially it iterates over the list of
 /// discovery nodes and spawns a coroutine to talk to each one
@@ -80,7 +84,7 @@ fn discover(mioco: &mut MiocoHandle, addr: SocketAddr, state: Arc<RwLock<State>>
 
             // And then block this coroutine waiting for a failure notification
             let mut mail_recv = mioco.wrap(mail_recv);
-            let _ = mail_recv.recv();
+            let _ = mail_recv.read();
             debug!("Remote connection failed, sleep and try to reconnect...");
         }
 
@@ -93,14 +97,61 @@ fn discover(mioco: &mut MiocoHandle, addr: SocketAddr, state: Arc<RwLock<State>>
 /// If the node fails, this function will signal via a mailbox and then exit
 fn remote_node_handler(mioco: &mut MiocoHandle, state: Arc<RwLock<State>>,
                     mut stream: EventSource<TcpStream>, failure: MailboxOuterEnd<bool>) -> Result<()> {
-    loop {
 
-        
-        debug!("Wrote ping to remote connection");
+    //process_writes(mioco, &state, &mut stream);
+
+    loop {
+        debug!("selecting...");
+        //let event = mioco.select();
+        debug!("Event: ");
+
+        // process writes first
+        //if event.has_write() {
+            process_writes(mioco, &state, &mut stream);
+        //}
+
+        //if event.has_read() {
+            process_reads(mioco, &state, &mut stream);
+        //}
+
         mioco.sleep(10000);
     }
 
     debug!("Shutting down remote connection...");
     let _ = failure.send(true);
     Ok(())
+}
+
+fn process_writes(mioco: &mut MiocoHandle, state: &Arc<RwLock<State>>,
+                    mut stream: &mut EventSource<TcpStream>) {
+    // Until Chrono supports serde natively, we'll just
+    // serialize the timestamp
+    let t = UTC::now().timestamp();
+
+    let v = {
+        let reader = state.read().unwrap();
+        reader.version.to_string()
+    };
+
+    let command = Protocol::Ping(PingCommand::new(t, v));
+
+    let encoded = encode(&command, Bounded(128)).unwrap();
+    stream.write_all(&encoded);
+    debug!("Wrote ping to remote connection");
+}
+
+fn process_reads(mioco: &mut MiocoHandle, state: &Arc<RwLock<State>>,
+                    mut stream: &mut EventSource<TcpStream>) {
+
+    let mut buffer = Vec::new();
+    stream.read_to_end(&mut buffer);
+    let message: Protocol = decode(&buffer).unwrap();
+    debug!("{:?}", message);
+
+    match message {
+        Protocol::Pong(p) => {
+            debug!("Received a pong response.");
+        },
+        _ => debug!("Received a message we are unable to handle")
+    }
 }

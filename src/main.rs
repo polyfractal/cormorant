@@ -1,20 +1,20 @@
-#![feature(custom_derive, plugin)]
-#![plugin(serde_macros)]
+#![feature(custom_derive)]
 
 extern crate clap;
 extern crate toml;
-extern crate serde;
 extern crate mio;
 extern crate mioco;
 extern crate uuid;
 extern crate chrono;
+extern crate bincode;
+extern crate semver;
+extern crate rustc_serialize;
 
 #[macro_use] extern crate log;
 extern crate env_logger;
 
 mod config;
 mod network_handler;
-
 mod state;
 mod util;
 

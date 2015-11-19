@@ -3,13 +3,11 @@ use std::fs::File;
 use std::io::prelude::*;
 use toml::{Parser, Value, Decoder};
 use toml;
-use serde::{Deserialize, Serialize, Deserializer};
-
 
 /// Config holds all the node's static configuration, such as
 /// the list of nodes to connect to, etc.  Once deserialized
 /// from disk, it is distributed to all threads as an immutable structure
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 pub struct Config  {
 
     /// The configurations related to networking and finding
@@ -62,17 +60,13 @@ impl Config {
 
         let config = Value::Table(toml.unwrap());
 
-        let mut d = Decoder::new(config);
-        match Deserialize::deserialize(&mut d) {
-            Ok(t) => t,
-            Err(e) => panic!("Error while deserializing config: {}", e)
-        }
+        toml::decode(config).unwrap()
     }
 }
 
 /// The configurations related to networking and finding
 /// other nodes
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 pub struct DiscoveryConfig  {
     /// The other nodes in the cluster
     pub hosts: Vec<String>,
@@ -95,7 +89,7 @@ impl DiscoveryConfig {
 }
 
 /// The configurations related to this node
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(RustcEncodable, RustcDecodable, Debug)]
 pub struct NodeConfig  {
     /// A user-defined name for the server
     pub name: String

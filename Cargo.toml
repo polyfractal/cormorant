@@ -9,17 +9,9 @@ mio = "*"
 clap = "1.2.5"
 env_logger = "*"
 log = "*"
-uuid = "0.1"
-serde_macros = "*"
-
-[dependencies.serde]
-version = "0.5"
-features = ["nightly"]
-
-[dependencies.toml]
-version = "*"
-features = ["serde"]
-default-features = false
-
-[dependencies.chrono]
-path = "/Users/tongz/Documents/rust/rust-chrono"
+uuid = "*"
+bincode = "*"
+semver = "*"
+toml = "*"
+chrono = "*"
+rustc-serialize = "0.3"
