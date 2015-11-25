@@ -17,7 +17,7 @@ To test Cormorant out, execute this command in two terminals (the nodes will
 find and cluster with each other):  
 
 ```
-$ RUST_LOG=piccolo=DEBUG cargo run --release
+$ RUST_LOG=cormorant=DEBUG cargo run --release
 ```
 
 If you would like to add more nodes, or change ports, edit the `cargo.toml` file
